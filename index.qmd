@@ -1,0 +1,323 @@
+## Section
+
+**Los porcentajes representan el la cantidad de docencia que se impartirá en de terminado lenguaje**
+
+```{r}
+library(tidyverse)
+
+# Reads csv and transforms percentages between 0 and 1
+results <- read_csv("Resultados-Consulta_Base.csv", locale = locale(decimal_mark = ","), show_col_types = FALSE) |> 
+    mutate(pval = pval/100, pcas = pcas/100)
+
+
+# In regions where there are two names keeps the Spanish name
+results$comarca <- str_trim(str_remove_all(results$comarca, pattern = ".*?/"))
+
+# Define the curso as a factor
+results$curso <- factor(results$curso, levels = c("2INF", "3INF", "4INF", "5INF",
+                                                  "1PRI", "2PRI", "3PRI", "4PRI", "5PRI", "6PRI",
+                                                  "1ESO", "2ESO", "3ESO"), ordered = TRUE)
+
+
+
+
+# Get the data of the different centers of
+
+centros <- read_csv("Centros-Comunidad-Valenciana.csv",col_types = cols(
+    Codigo = col_character(),
+    Denominacion_Especifica = col_character(),
+    Denominacion = col_character(),
+    Regimen = col_character(),
+    Tipo_Via = col_character(),
+    Direccion = col_character(),
+    Num = col_character(),
+    Codigo_postal = col_character(),  
+    Localidad = col_character(),
+    Provincia = col_character(),
+    Telefono = col_character(),       
+    long = col_character(),
+    lat = col_number(),
+    Titularidad = col_character(),
+    CIF = col_character()
+  )
+) |> 
+  rename(
+    codigo = Codigo,
+    denominacion_especifica = Denominacion_Especifica,
+    denominacion = Denominacion,
+    regimen = Regimen,
+    tipo_via = Tipo_Via,
+    direccion = Direccion,
+    num = Num,
+    codigo_postal = Codigo_postal,
+    localidad = Localidad,
+    provincia = Provincia,
+    telefono = Telefono,
+    longitud = long,
+    latitud = lat,
+    titularidad = Titularidad,
+    cif = CIF
+  )
+
+# Define una variable en función de si eel centro es público o privaod
+centros <- centros |>
+    mutate(es_publico = if_else("Púb." == regimen, "Público", "Concertado"))
+
+# Pueblos con más habitantes
+pueblos_mas_habitantes <- c("VALÈNCIA", "ALACANT", "ELX", "CASTELLÓ DE LA PLANA", "TORREVIEJA", "TORRENT", "ORIHUELA", "GANDIA", "PATERNA", "BENIDORM","SAGUNT","SANT VICENT DEL RASPEIG","ALCOI","ELDA","VILA-REAL","PAIPORTA","PICANYA","ONTINYENT")
+```
+
+## Resultados por provincia
+
+```{r}
+
+
+# Gets the mean of Valencian
+media = mean(results$pval) 
+
+results |>
+    group_by(provincia) |>
+    summarise(val = mean(pval), cas = mean(pcas)) |>
+    
+    pivot_longer(!provincia, names_to = "lengua", values_to = "porcentaje")  |>
+    ggplot(aes(
+        x = provincia,
+        y = porcentaje,
+        fill = lengua,
+        label = str_c(ceiling(porcentaje * 10000) / 100, "%")
+    )) +
+    geom_col() +
+    geom_text(size = 5, position = position_stack(vjust = 0.5)) +    # Etiquetas centradas
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_manual(
+        # Leyenda
+        name = "Lengua",
+        labels = c("cas" = "Castellano", "val" = "Valenciano"),
+        values = c("cas" = "#C41E3A", "val" = "orange")
+    ) +
+    geom_hline(aes(yintercept = media), size = 2) +
+    annotate(
+        geom = "label",
+        x = "Castelló",
+        y = 0.58,
+        label = str_c("Porcentaje Valenciano: ", ceiling(media * 10000) /100, "%")
+    ) +
+    labs(
+        title = "Resultado Consulta Lingüística Base por Provincia",
+        subtitle = "Comunidad Valenciana | Marzo 2025",
+        x = "Provincia",
+        y = "Porcentaje",
+        caption = "Fuente: gva.es"
+    ) +
+    theme_minimal()
+
+
+```
+
+```{r}
+modelo_anova <- results |> aov(pval ~ Provincia) # pval = porcentaje valenciano != p-value
+summary(modelo_anova)
+```
+
+
+```{r, fig.width=8, fig.height=8}
+
+results |>
+    group_by(provincia, comarca) |>
+    summarise(
+        val = mean(pval),
+        cas = mean(pcas) ) |>
+      mutate(comarca = fct_reorder(comarca, val)) |> 
+    pivot_longer(
+        cols = -c(provincia, comarca),
+        names_to = "lengua",
+        values_to = "porcentaje"
+    ) |>
+    
+    ggplot(aes(
+        x = comarca,
+        y = porcentaje,
+        fill = lengua,
+        label = str_c(ceiling(porcentaje * 100), "%")
+    )) +
+    geom_col() +
+    geom_text(size = 2.5, position = position_stack(vjust = 0.5)) +    # Etiquetas centradas
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_manual(
+        # Leyenda
+        
+        name = "Lengua",
+        labels = c("cas" = "Castellano", "val" = "Valenciano"),
+        values = c("cas" = "#C41E3A", "val" = "orange")
+    ) +
+    labs(
+        title = "Resultado Consulta Lingüística Base por Provincia",
+        subtitle = "Comunidad Valednciana | Marzo 2025",
+        x = "Comarca",
+        y = "Porcentaje",
+        caption = "Fuente: gva.es"
+    ) +
+    facet_wrap( ~ provincia, scales = "free_x", ncol = 1) +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_text(
+            angle = 30,
+            vjust = 1,
+            hjust = 1
+        ),
+        axis.ticks.x = element_line(color = "black"),
+        axis.ticks.length.x = unit(0.1, "cm")
+    )
+```
+
+Dado que el valenciano ha sido la lengua más votada, las gráficas de distribución de datos que se presentan a continuación se elaborarán únicamente para el valenciano, ya que el porcentaje de castellano se obtiene como su complementario. asdfsdfasfasdffsafv----
+
+
+```{r}
+
+results  |>
+    ggplot(aes(x=provincia, y =pval, color = provincia)) +
+    geom_boxplot() +
+    geom_violin()+
+    # Escalas
+    scale_y_continuous(labels = scales::percent) +
+    theme_minimal()
+
+
+```
+
+
+```{r}
+results  |>
+    ggplot(aes(x=pval, color = provincia)) +
+    geom_density() +
+    # Escalas
+    scale_x_continuous(labels = scales::percent) +
+    theme_minimal()
+
+```
+
+```{r}
+
+
+results |>
+    filter(localidad %in% pueblos_mas_habitantes) |>
+      mutate(localidad = fct_rev(factor(localidad, levels = sort(unique(localidad)))))|> 
+    ggplot(aes(x=pval, y= localidad, color=provincia)) +
+    geom_boxplot() +
+    stat_summary(fun = mean, geom = "point", shape = 3, size = 2) +
+    theme_minimal()
+
+```
+
+
+
+## Agrupación por cursos
+
+```{r}
+
+results |>
+    ggplot(aes(x= pval, y=curso, color = etapa)) +
+    geom_boxplot() +
+    stat_summary(fun = mean, geom = "point", shape = 3, size = 2) +
+    theme_minimal()
+
+
+
+```
+
+```{r}
+
+results |>
+    group_by(etapa,curso) |>
+    summarise(
+        val = median(pval),
+    )  |>
+    ggplot(aes(x= curso, group=1, color=etapa)) +
+    geom_line(aes(y=val)) +
+    scale_y_continuous(limits = c(0,1)) +
+    theme_minimal()
+
+
+```
+
+
+```{r}
+
+# Centros y su régimen
+
+centros_regimen <- centros |>
+    select(codigo, es_publico)
+
+centros_resultados<- results |>
+    select(codigo, pval,pcas) |>
+    right_join(centros_regimen, join_by(codigo == codigo)) 
+
+centros_resultados |>
+    group_by(es_publico) |>
+    summarise(val = mean(pval,na.rm = TRUE), cas = mean(pcas, na.rm=TRUE) ) |>
+    pivot_longer(!es_publico, names_to = "lengua", values_to = "porcentaje") |>
+    ggplot(aes(
+        x = es_publico,
+        y = porcentaje,
+        fill = lengua,
+        label = str_c(ceiling(porcentaje * 10000) / 100, "%")
+    )) +
+    geom_col() +
+    geom_text(size = 5, position = position_stack(vjust = 0.5)) +    # Etiquetas centradas
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_manual(
+        # Leyenda
+        name = "Lengua",
+        labels = c("cas" = "Castellano", "val" = "Valenciano"),
+        values = c("cas" = "#C41E3A", "val" = "orange")
+    ) +
+    labs(
+        title = "Resultado Consulta Lingüística Base por Régimen de Centro",
+        subtitle = "Comunidad Valenciana | Marzo 2025",
+        x = "Régimen",
+        y = "Porcentaje",
+        caption = "Fuente: gva.es"
+    ) +
+    theme_minimal()
+
+
+```
+
+
+```{r}
+
+centros_resultados |> 
+    ggplot(aes(x=es_publico, fill=es_publico)) +
+    geom_bar()+
+       labs(
+        title = "Cantidad de cursos según régimen",
+        subtitle = "Comunidad Valenciana | Marzo 2025",
+        x = "Régimen",
+        y = "Cantidad de cursos impartidos",
+        caption = "Fuente: gva.es"
+    ) +
+    theme_minimal()
+
+
+centros_resultados |>
+    ggplot(aes(x="", fill =es_publico))+
+    geom_bar(stat = "count", width = 1, color = "white") +
+     coord_polar("y", start = 0) +
+    geom_text(
+        aes(label = paste0(..count.., " (", round(..count.. / sum(..count..) * 100, 1), "%)")),
+        stat = "count",
+        position = position_stack(vjust = 0.5),
+        size = 4,
+        color = "black"
+    ) +
+    labs(
+        title = "Cantidad de cursos según régimen",
+        subtitle = "Comunidad Valenciana | Marzo 2025",
+        fill = "Régimen",
+        caption = "Fuente: gva.es"
+    ) +theme_void()
+
+    
+
+```

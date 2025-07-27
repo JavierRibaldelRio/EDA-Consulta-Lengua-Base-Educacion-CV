@@ -1,0 +1,18 @@
+project:
+  type: manuscript
+  preview: 
+    port: 3000
+
+manuscript:
+  article: index.qmd
+
+format:
+  html: default
+  docx: default
+  pdf: default
+
+execute:
+  freeze: auto
+
+
+
