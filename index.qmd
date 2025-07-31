@@ -4,6 +4,7 @@
 
 ```{r}
 library(tidyverse)
+library(car)
 
 # Reads csv and transforms percentages between 0 and 1
 results <- read_csv("Resultados-Consulta_Base.csv", locale = locale(decimal_mark = ","), show_col_types = FALSE) |> 
@@ -114,11 +115,22 @@ results |>
 
 ```
 
-```{r}
-modelo_anova <- results |> aov(pval ~ Provincia) # pval = porcentaje valenciano != p-value
-summary(modelo_anova)
-```
 
+
+```{r}
+library(ggplot2)
+
+ggplot(results, aes(x = provincia, y = pval, fill = provincia)) +
+  geom_boxplot() +
+  labs(
+    title = "Porcentaje de valenciano votado por centro segun provincia",
+    subtitle = "Diferencias significativas (ANOVA p < 0.001)",
+    x = "",
+    y = "% de valenciano"
+  ) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+```
 
 ```{r, fig.width=8, fig.height=8}
 
@@ -250,8 +262,8 @@ centros_regimen <- centros |>
     select(codigo, es_publico)
 
 centros_resultados<- results |>
-    select(codigo, pval,pcas) |>
-    right_join(centros_regimen, join_by(codigo == codigo)) 
+    select(codigo, pval,pcas, provincia, etapa, curso) |>
+    inner_join(centros_regimen, join_by(codigo == codigo)) 
 
 centros_resultados |>
     group_by(es_publico) |>
@@ -320,4 +332,38 @@ centros_resultados |>
 
     
 
+```
+
+
+
+```{r}
+modelo_simple <- aov(pval ~ provincia +   regimen +etapa + regimen:provincia  , data = centros_resultados |> rename(regimen = es_publico))
+tabla_anova <-  Anova(modelo_simple, type = 3)  # Ahora debería funcionar
+tabla_anova
+
+# Suma de cuadrados del modelo (excluyendo el intercepto)
+ss_modelo <- sum(tabla_anova$"Sum Sq"[2:5])  # Filas de efectos en tabla_anova
+
+# Suma de cuadrados total
+ss_total <- sum(tabla_anova$"Sum Sq")  # Incluye Residuals
+
+# R²
+r_squared <- ss_modelo / ss_total
+r_squared
+n <- nrow(centros_resultados)  # Número de observaciones
+k <- 5                         # Número de términos (provincia, regimen, etapa, interacción, etc.)
+r_squared_adj <- 1 - ( (1 - r_squared) * (n - 1) / (n - k - 1) )
+
+# Mostrar resultados
+cat("R²:", round(r_squared, 4), "\nR² ajustado:", round(r_squared_adj, 4))
+
+
+```
+
+Tras realizar el ANOVA se observa claramente una diferencia estadísticamente significativa entre cada de las provincias y las diferentes etapas (Infatil, Primaria y Secunario) pues el p-valor de ambas tiende a 0. Como era de esperar se aprecia una diferencia signficativa aunque de menor intensidad entre los centros
+
+Procedemos a realizarel test *post-hoc*, mientras que el ANOVA nos permite determinar la existencia de diferencias estadísticamente significativas 
+
+```{r}
+TukeyHSD(modelo_anova)
 ```
