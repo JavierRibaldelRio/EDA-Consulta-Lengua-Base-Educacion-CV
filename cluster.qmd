@@ -1,0 +1,13 @@
+---
+title: "cluster"
+format: html
+---
+
+```r
+library(sf)
+library(dplyr)
+library(ggplot2)
+
+data/cnig/lineas_limite/SHP_ETRS89/recintos_municipales_inspire_peninbal_etrs89
+
+```
