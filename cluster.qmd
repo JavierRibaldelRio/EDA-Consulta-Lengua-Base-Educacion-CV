@@ -3,11 +3,43 @@ title: "cluster"
 format: html
 ---
 
-```r
+```{r}
+library(tidyverse)
 library(sf)
-library(dplyr)
-library(ggplot2)
 
-data/cnig/lineas_limite/SHP_ETRS89/recintos_municipales_inspire_peninbal_etrs89
 
 ```
+
+## Cálculo de la distancia al mar
+```{r}
+
+
+municipios_shape <- st_read("data/cnig/lineas_limite/SHP_ETRS89/recintos_municipales_inspire_peninbal_etrs89/recintos_municipales_inspire_peninbal_etrs89.shp") |> 
+    st_transform(25830)
+
+l_costa <- st_read("data/costa/COSTA.shp") |> 
+    filter(BAJAMAR == TRUE & CIERRACOST == TRUE) |> 
+    st_transform(25830) |> 
+    st_union() |> 
+     st_line_merge()
+
+
+    
+municipos_dist <- municipios_shape |>
+    filter(CODNUT2 == "ES52") |>            # Select CV
+    mutate(
+        geometry = geometry,
+        name = NAMEUNIT,                    # Mantener nombre
+        ine_code = substr(NATCODE, 7, 11),  # Transform to INE code
+        distancia_mar = ifelse(
+            st_intersects(geometry, l_costa, sparse = FALSE)[,1],
+            0,  # Si toca la costa (distancia = 0)
+            st_distance(st_centroid(geometry), l_costa)  
+            ),
+        .keep = "none"  
+        ) 
+
+```
+
+
+
