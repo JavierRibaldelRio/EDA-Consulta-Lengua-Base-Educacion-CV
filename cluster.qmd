@@ -6,11 +6,13 @@ format: html
 ```{r}
 library(tidyverse)
 library(sf)
-
+library(ineapir)
 
 ```
 
 ## Cálculo de la distancia al mar
+
+Datos obtenidos del CNIC
 ```{r}
 
 
@@ -25,7 +27,7 @@ l_costa <- st_read("data/costa/COSTA.shp") |>
 
 
     
-municipos_dist <- municipios_shape |>
+datos_municipios <- municipios_shape |>
     filter(CODNUT2 == "ES52") |>            # Select CV
     mutate(
         geometry = geometry,
@@ -41,5 +43,70 @@ municipos_dist <- municipios_shape |>
 
 ```
 
+# Datos de Renta y de población
+
+```{r}
+
+ultimo_anyo_renta <- 2022
+tipo_renta_seleccionada <- "Renta neta media por hogar"
+
+# Dado el ID de la tabla del INE obtiene la renta media por hogar de dicha tabla
+get_renta_INE <- function(id_table){
+    
+    data <- get_data_table(idTable=id_table, unnest = TRUE, tip="AM", metanames = TRUE, metacodes = TRUE) 
+    
+      return(data |>
+                filter(
+                        nchar(Unidades.territoriales.Codigo) == 5 & 
+                        Anyo == ultimo_anyo_renta &
+                        Indicadores.de.renta.media.y.mediana ==tipo_renta_seleccionada
+                      ) |>
+                select(
+                      ine_code =Unidades.territoriales.Codigo,
+                      renta = Valor
+                      )
+      )
+         
+}
 
 
+# Tarda bastante rato
+rentas <- bind_rows(
+        get_renta_INE(31250),
+        get_renta_INE(30833),
+        get_renta_INE(30962)
+    )
+
+
+
+# Población
+
+ultimo_anyo_poblacion <- 2024
+poblacion <
+
+get_renta_INE <- function(id_table){
+    
+    data <- get_data_table(idTable=id_table, unnest = TRUE, tip="AM", metanames = TRUE, metacodes = TRUE) 
+    
+      return(data |>
+                filter(
+                        nchar(Unidades.territoriales.Codigo) == 5 & 
+                        Anyo == ultimo_anyo_renta &
+                        Indicadores.de.renta.media.y.mediana ==tipo_renta_seleccionada
+                      ) |>
+                select(
+                      ine_code =Unidades.territoriales.Codigo,
+                      renta = Valor
+                      )
+      )
+         
+}
+
+
+
+datos_municipios <- full_join(datos_municipios,rentas,by="ine_code")
+   
+
+
+
+```
