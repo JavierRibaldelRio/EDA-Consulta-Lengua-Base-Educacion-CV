@@ -82,31 +82,60 @@ rentas <- bind_rows(
 # Población
 
 ultimo_anyo_poblacion <- 2024
-poblacion <
+poblacion_seleccionada <- "Total"
 
-get_renta_INE <- function(id_table){
+get_poblacion_INE <- function(id_table){
     
-    data <- get_data_table(idTable=id_table, unnest = TRUE, tip="AM", metanames = TRUE, metacodes = TRUE) 
-    
+    data <- get_data_table(idTable=id_table, unnest = TRUE, tip="M", metanames = TRUE, metacodes = TRUE) 
       return(data |>
                 filter(
-                        nchar(Unidades.territoriales.Codigo) == 5 & 
-                        Anyo == ultimo_anyo_renta &
-                        Indicadores.de.renta.media.y.mediana ==tipo_renta_seleccionada
+                        nchar(Municipios.Codigo) == 5 & 
+                        Anyo == ultimo_anyo_poblacion &
+                        Sexo == poblacion_seleccionada
                       ) |>
                 select(
-                      ine_code =Unidades.territoriales.Codigo,
-                      renta = Valor
+                      ine_code = Municipios.Codigo,
+                      poblacion = Valor
                       )
       )
          
 }
 
 
+poblaciones <- bind_rows(
+    get_poblacion_INE(2903),   # Valencia
+    get_poblacion_INE(2865),   # Castellón
+    get_poblacion_INE(2856)    # Alicante
+    
+)
 
-datos_municipios <- full_join(datos_municipios,rentas,by="ine_code")
+datos_municipios <- full_join(poblaciones,rentas,by="ine_code") |> 
+    full_join(datos_municipios,by="ine_code")
+```
    
+## Datos electorales
 
+Obtenidos de https://infoelectoral.interior.gob.es/es/elecciones-celebradas/area-de-descargas/ en este caso nos fijaremos en el porcentaje de votantes al partido de izquierdas sumar que se presentó a las elecciones en coalición con Compromís, partido nacionalista valenciano.
+
+```{r}
+resultados_elecciones <- read_csv("data/elecciones-23J.csv") 
+
+datos_municipios <- resultados_elecciones |> 
+    select(coP = `Código de Provincia`,
+           sumar_compromis = "SUMAR",
+           n_votantes = "Total votantes",
+           coM = "Código de Municipio") |> 
+    filter(coP %in% c(46, 3,12)) |> 
+    mutate(
+        ine_code= str_c(  # Genera el código del Ine
+            str_pad(coP, width = 2, pad = "0"),
+            str_pad(coM, width = 3, pad = "0")
+        ),
+        percent_sumar_compromis = sumar_compromis/n_votantes,
+        .keep = "none"
+    ) |> full_join(datos_municipios,by="ine_code")
 
 
 ```
+
+
