@@ -31,7 +31,16 @@ datos_municipios <- municipios_shape |>
     filter(CODNUT2 == "ES52") |>            # Select CV
     mutate(
         geometry = geometry,
-        name = NAMEUNIT,                    # Mantener nombre
+        name =  {
+                name_clean <- str_trim(str_to_lower(NAMEUNIT))                           
+                name_part  <- str_extract(name_clean, "^[^/]+")                      
+                articulo   <- str_extract(name_part, "^(l'|el|la)\\b")               
+                sin_art    <- str_remove(name_part, "^(l'|el|la)\\b\\s*")            
+                final_name <- if_else(!is.na(articulo), 
+                                      str_trim(str_glue("{sin_art} ({articulo})")), 
+                                      str_trim(sin_art))                            
+                final_name
+  },                    # Formatear nombre
         ine_code = substr(NATCODE, 7, 11),  # Transform to INE code
         distancia_mar = ifelse(
             st_intersects(geometry, l_costa, sparse = FALSE)[,1],
@@ -133,8 +142,14 @@ datos_municipios <- resultados_elecciones |>
         ),
         percent_sumar_compromis = sumar_compromis/n_votantes,
         .keep = "none"
-    ) |> full_join(datos_municipios,by="ine_code")
+    ) |> 
+    full_join(datos_municipios,by="ine_code") |> 
+    select(ine_code,name, poblacion, renta,
+           percent_sumar_compromis,distancia_mar, geometry)
 
+datos_municipios
+
+st_write(datos_municipios, "data/datos_municipios_formated.gpkg",delete_dsn = TRUE )
 
 ```
 
